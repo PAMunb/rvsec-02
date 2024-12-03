@@ -19,6 +19,7 @@ services:
       - RV_TOOLS=ape ares droidbot droidbot_bfs_greedy droidbot_bfs_naive droidbot_dfs_greedy droidmate fastbot humanoid monkey qtesting
       - RV_HUMANOID_URL=humanoid:50405
       - RV_NO_WINDOW=true
+      - RV_JCA_SPEC=false
     volumes:
       - ./01/apks:/opt/rvsec/rv-android/apks
       - ./01/instrumented:/opt/rvsec/rv-android/out
@@ -41,6 +42,7 @@ services:
       - RV_TOOLS=ape ares droidbot droidbot_bfs_greedy droidbot_bfs_naive droidbot_dfs_greedy droidmate fastbot humanoid monkey qtesting
       - RV_HUMANOID_URL=humanoid:50405
       - RV_NO_WINDOW=true
+      - RV_JCA_SPEC=false
       # - RV_DELAY=15
     volumes:
       - ./02/apks:/opt/rvsec/rv-android/apks
@@ -64,6 +66,7 @@ services:
       - RV_TOOLS=ape ares droidbot droidbot_bfs_greedy droidbot_bfs_naive droidbot_dfs_greedy droidmate fastbot humanoid monkey qtesting
       - RV_HUMANOID_URL=humanoid:50405
       - RV_NO_WINDOW=true
+      - RV_JCA_SPEC=false
       # - RV_DELAY=30
     volumes:
       - ./03/apks:/opt/rvsec/rv-android/apks
@@ -87,6 +90,7 @@ services:
       - RV_TOOLS=ape ares droidbot droidbot_bfs_greedy droidbot_bfs_naive droidbot_dfs_greedy droidmate fastbot humanoid monkey qtesting
       - RV_HUMANOID_URL=humanoid:50405
       - RV_NO_WINDOW=true
+      - RV_JCA_SPEC=false
       # - RV_DELAY=45
     volumes:
       - ./04/apks:/opt/rvsec/rv-android/apks
@@ -110,6 +114,7 @@ services:
       - RV_TOOLS=ape ares droidbot droidbot_bfs_greedy droidbot_bfs_naive droidbot_dfs_greedy droidmate fastbot humanoid monkey qtesting
       - RV_HUMANOID_URL=humanoid:50405
       - RV_NO_WINDOW=true
+      - RV_JCA_SPEC=false
       # - RV_DELAY=60
     volumes:
       - ./05/apks:/opt/rvsec/rv-android/apks
