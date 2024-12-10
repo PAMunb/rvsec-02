@@ -19,7 +19,7 @@ services:
       - RV_TOOLS=${TOOLS}
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
-      - RV_JCA_SPEC=true
+      - RV_JCA_SPEC=${JCA_SPEC}
     volumes:
       - ./01/apks:/opt/rvsec/rv-android/apks
       - ./01/instrumented:/opt/rvsec/rv-android/out
@@ -42,7 +42,7 @@ services:
       - RV_TOOLS=${TOOLS}
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
-      - RV_JCA_SPEC=true
+      - RV_JCA_SPEC=${JCA_SPEC}
       # - RV_DELAY=15
     volumes:
       - ./02/apks:/opt/rvsec/rv-android/apks
@@ -53,8 +53,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "8"
-          memory: 16g
+          cpus: ${CPUS}
+          memory: ${MEMORY}
     depends_on:
       - humanoid
   rv03:
@@ -66,7 +66,7 @@ services:
       - RV_TOOLS=${TOOLS}
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
-      - RV_JCA_SPEC=true
+      - RV_JCA_SPEC=${JCA_SPEC}
       # - RV_DELAY=30
     volumes:
       - ./03/apks:/opt/rvsec/rv-android/apks
@@ -77,8 +77,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "8"
-          memory: 16g
+          cpus: ${CPUS}
+          memory: ${MEMORY}
     depends_on:
       - humanoid
   rv04:
@@ -90,7 +90,7 @@ services:
       - RV_TOOLS=${TOOLS}
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
-      - RV_JCA_SPEC=true
+      - RV_JCA_SPEC=${JCA_SPEC}
       # - RV_DELAY=45
     volumes:
       - ./04/apks:/opt/rvsec/rv-android/apks
@@ -101,8 +101,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "8"
-          memory: 16g
+          cpus: ${CPUS}
+          memory: ${MEMORY}
     depends_on:
       - humanoid
   rv05:
@@ -114,7 +114,7 @@ services:
       - RV_TOOLS=${TOOLS}
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
-      - RV_JCA_SPEC=true
+      - RV_JCA_SPEC=${JCA_SPEC}
       # - RV_DELAY=60
     volumes:
       - ./05/apks:/opt/rvsec/rv-android/apks
@@ -125,7 +125,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "8"
-          memory: 16g
+          cpus: ${CPUS}
+          memory: ${MEMORY}
     depends_on:
       - humanoid
