@@ -118,7 +118,7 @@ def get_results_map():
             return None
 
     for subdir in subdirectories:           
-        if ".git" in subdir:
+        if ".git" in subdir or "RESULTS" in subdir or "venv" in subdir:
             continue      
         results_dir = get_latest_subdirectory(os.path.join(subdir,"results"))        
         results_map[subdir[2:]] = os.path.join(subdir,"results",results_dir,"execution_memory.json")
