@@ -3,9 +3,9 @@ import os
 import datetime
 import json
 from rich import print
-
+import pandas as pd
 import time
-
+from pathlib import Path
 from rich.progress import Progress, TaskProgressColumn, TimeRemainingColumn, MofNCompleteColumn, SpinnerColumn, \
     DownloadColumn
 
@@ -17,23 +17,32 @@ from rich.progress import Progress, BarColumn, TextColumn
 
 from rich.console import Console
 from rich.table import Table
+from rich_tools import table_to_df
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Executa ações com base no ID fornecido.')
-    parser.add_argument('--exec', type=str, help='ID da ação a ser executada')
+    parser = argparse.ArgumentParser(description="Allows you to monitor the status of the experiment execution.")
+    parser.add_argument("--exec", type=str, help="Show details of an execution. Pass only the execution number (ID). Example: --exec 03")
+    parser.add_argument("--save", nargs=2, metavar=("ID", "FILE"), help="Saves execution status to a csv file. Example: --save 01 exec01.csv")
 
     args = parser.parse_args()
 
     exec_map = get_results_map()
     if args.exec:
         execution_info(exec_map[args.exec])
+    elif args.save:
+        table = execution_info(exec_map[args.save[0]], print_to_console=False)       
+        save_execution_info(table, args.save[1])
     else:
         all_executions_info(exec_map)
 
 
+def save_execution_info(table: Table, output_file: str):    
+    df = table_to_dataframe(table)
+    df.to_csv(output_file, index=False)
 
-def execution_info(execution_memory):
+
+def execution_info(execution_memory, print_to_console=True):    
     table = Table(title="Tasks")
     # table.add_column("ID", justify="right", style="cyan", no_wrap=True)
     table.add_column("apk", style="magenta")
@@ -43,22 +52,22 @@ def execution_info(execution_memory):
     table.add_column("executed", justify="center", style="magenta")
     table.add_column("time", justify="right", style="magenta")
     execution = read_execution_memory(execution_memory)
-    # print(f"execution={execution}")
     for apk in execution:            
         for rep in execution[apk]:
             for timeout in execution[apk][rep]:
                 for tool in execution[apk][rep][timeout]:   
                     task = execution[apk][rep][timeout][tool] 
-                    # print(task)
                     executed = ""
                     time = ""
                     if task["executed"]:
                         time = task["finish"] - task["start"]
                         #python -m rich.emoji
                         executed = ":white_heavy_check_mark:"
-                    table.add_row(apk, str(rep), str(timeout), tool, executed, str(time))
-    console = Console()
-    console.print(table)
+                    table.add_row(apk, str(rep), str(timeout), tool, executed, str(time))                    
+    if print_to_console:
+        console = Console()
+        console.print(table)        
+    return table
 
 
 def all_executions_info(exec_map):
@@ -67,9 +76,7 @@ def all_executions_info(exec_map):
     tasks_executed = 0
     for _exec in exec_map:
         execution = read_execution_memory( exec_map[_exec])
-        map_total[_exec] = { "total_tasks": 0,
-                                "executed": 0,
-                                "pct": 0.0}
+        map_total[_exec] = { "total_tasks": 0, "executed": 0, "pct": 0.0}
         for apk in execution:            
             for rep in execution[apk]:
                 for timeout in execution[apk][rep]:
@@ -87,9 +94,6 @@ def all_executions_info(exec_map):
     print(f"tasks_total={total_tasks}")
     print(f"tasks_executed={tasks_executed}")
 
-    
-
-
 
 def executions_progress(map_total):
     with Progress(
@@ -106,7 +110,7 @@ def executions_progress(map_total):
 
 
 def read_execution_memory(file_path: str):
-    with open(file_path, 'r') as exec_file:
+    with open(file_path, "r") as exec_file:
         dados = json.load(exec_file)
         return dados
 
@@ -127,24 +131,26 @@ def get_results_map():
 
 def get_latest_subdirectory(directory):
     try:
-        subdirectories = [f.path for f in os.scandir(directory) if f.is_dir()]
-        if not subdirectories:
-            return None
-
-        modified_times = {
-            subdirectory: os.path.getmtime(subdirectory)
-            for subdirectory in subdirectories
-        }
-
-        latest_subdirectory = max(modified_times, key=modified_times.get)        
-        return os.path.basename(latest_subdirectory)
+        path = Path(directory)
+        latest_subdirectory = max(path.glob('*'), key=lambda x: x.stat().st_mtime)
+        return latest_subdirectory.name
     except FileNotFoundError:
-        print(f"O diretório '{directory}' não foi encontrado.")
+        print(f"Directory '{directory}' not found.")
         return None
-    
 
-if __name__ == '__main__':
-    # aaa = "/home/pedro/desenvolvimento/workspaces/workspaces-doutorado/workspace-rv/rvsec-02"
-    # aaa = "/pedro/desenvolvimento/RV_ANDROID/EXPERIMENTO_02/BASE/para05/04/results"
-    # print(get_latest_subdirectory(aaa))
+
+def table_to_dataframe(table: Table):
+    data = []
+    header = []
+    for column in table.columns:
+        header.append(column.header)        
+        line = []
+        for cell in column.cells:
+            line.append(cell)            
+        data.append(line)    
+    transposed_matrix = [[row[i] for row in data] for i in range(len(data[0]))]
+    return pd.DataFrame(transposed_matrix, columns=header)    
+
+
+if __name__ == "__main__":
     main()
