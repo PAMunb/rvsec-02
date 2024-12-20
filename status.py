@@ -42,8 +42,8 @@ def save_execution_info(table: Table, output_file: str):
     df.to_csv(output_file, index=False)
 
 
-def execution_info(execution_memory, print_to_console=True):    
-    table = Table(title="Tasks")
+def execution_info(execution_memory: str, print_to_console=True):    
+    table = Table(title="Tasks from: {}".format(execution_memory))
     # table.add_column("ID", justify="right", style="cyan", no_wrap=True)
     table.add_column("apk", style="magenta")
     table.add_column("rep", justify="right", style="green")
@@ -93,6 +93,7 @@ def all_executions_info(exec_map):
 
     print(f"tasks_total={total_tasks}")
     print(f"tasks_executed={tasks_executed}")
+    print(f"tasks_pct={((tasks_executed*100)/total_tasks):.2f}%")
 
 
 def executions_progress(map_total):

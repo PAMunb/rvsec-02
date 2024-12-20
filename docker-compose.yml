@@ -5,11 +5,16 @@ services:
     container_name: humanoid
     ports:
       - 50405:50405
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:50405"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' -d '{\"history_view_trees\": {}, \"history_events\": [], \"possible_events\": [], \"screen_res\": []}' http://localhost:50405"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+    # healthcheck:
+    #   test: ["CMD", "curl", "-f", "http://127.0.0.1:50405"]
+    #   interval: 5s
+    #   timeout: 3s
+    #   retries: 5
   rv01:
     image: phtcosta/rvandroid:0.0.1
     container_name: rv01
