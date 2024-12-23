@@ -17,7 +17,7 @@ from rich.progress import Progress, BarColumn, TextColumn
 
 from rich.console import Console
 from rich.table import Table
-from rich_tools import table_to_df
+#from rich_tools import table_to_df
 
 
 def main():
