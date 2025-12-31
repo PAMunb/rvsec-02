@@ -1,2 +1,5 @@
 rich
 pandas
+openpyxl
+androguard==3.4.0a1
+networkx
