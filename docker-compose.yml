@@ -1,23 +1,13 @@
-version: "3.7"
 services:
   humanoid:
     image: phtcosta/humanoid:1.0
-    container_name: humanoid
+    container_name: rv-humanoid
     ports:
       - 50405:50405
-    # healthcheck:
-    #   test: ["CMD-SHELL", "curl -s -X POST -H 'Content-Type: application/json' -d '{\"history_view_trees\": {}, \"history_events\": [], \"possible_events\": [], \"screen_res\": []}' http://localhost:50405"]
-    #   interval: 10s
-    #   timeout: 5s
-    #   retries: 5
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://127.0.0.1:50405"]
-    #   interval: 5s
-    #   timeout: 3s
-    #   retries: 5
+
   rv01:
     image: phtcosta/rvandroid:0.0.1
-    container_name: rv01
+    container_name: rv-01
     environment:
       - RV_REPETITIONS=${REPETITIONS}
       - RV_TIMEOUTS=${TIMEOUTS}
@@ -26,21 +16,23 @@ services:
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
     volumes:
-      - ./01/apks:/opt/rvsec/rv-android/apks
-      - ./01/instrumented:/opt/rvsec/rv-android/out
-      - ./01/results:/opt/rvsec/rv-android/results
+      - ./batches/01:/opt/rvsec/rv-android/apks
+      - ./containers/01/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/01/results:/opt/rvsec/rv-android/results
+      - ./containers/01/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
       resources:
         limits:
-          cpus: ${CPUS}
+          cpus: "${CPUS}"
           memory: ${MEMORY}
     depends_on:
       - humanoid
+
   rv02:
     image: phtcosta/rvandroid:0.0.1
-    container_name: rv02
+    container_name: rv-02
     environment:
       - RV_REPETITIONS=${REPETITIONS}
       - RV_TIMEOUTS=${TIMEOUTS}
@@ -48,23 +40,24 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
-      # - RV_DELAY=15
     volumes:
-      - ./02/apks:/opt/rvsec/rv-android/apks
-      - ./02/instrumented:/opt/rvsec/rv-android/out
-      - ./02/results:/opt/rvsec/rv-android/results
+      - ./batches/02:/opt/rvsec/rv-android/apks
+      - ./containers/02/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/02/results:/opt/rvsec/rv-android/results
+      - ./containers/02/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
       resources:
         limits:
-          cpus: ${CPUS}
+          cpus: "${CPUS}"
           memory: ${MEMORY}
     depends_on:
       - humanoid
+
   rv03:
     image: phtcosta/rvandroid:0.0.1
-    container_name: rv03
+    container_name: rv-03
     environment:
       - RV_REPETITIONS=${REPETITIONS}
       - RV_TIMEOUTS=${TIMEOUTS}
@@ -72,23 +65,24 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
-      # - RV_DELAY=30
     volumes:
-      - ./03/apks:/opt/rvsec/rv-android/apks
-      - ./03/instrumented:/opt/rvsec/rv-android/out
-      - ./03/results:/opt/rvsec/rv-android/results
+      - ./batches/03:/opt/rvsec/rv-android/apks
+      - ./containers/03/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/03/results:/opt/rvsec/rv-android/results
+      - ./containers/03/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
       resources:
         limits:
-          cpus: ${CPUS}
+          cpus: "${CPUS}"
           memory: ${MEMORY}
     depends_on:
       - humanoid
+
   rv04:
     image: phtcosta/rvandroid:0.0.1
-    container_name: rv04
+    container_name: rv-04
     environment:
       - RV_REPETITIONS=${REPETITIONS}
       - RV_TIMEOUTS=${TIMEOUTS}
@@ -96,23 +90,24 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
-      # - RV_DELAY=45
     volumes:
-      - ./04/apks:/opt/rvsec/rv-android/apks
-      - ./04/instrumented:/opt/rvsec/rv-android/out
-      - ./04/results:/opt/rvsec/rv-android/results
+      - ./batches/04:/opt/rvsec/rv-android/apks
+      - ./containers/04/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/04/results:/opt/rvsec/rv-android/results
+      - ./containers/04/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
       resources:
         limits:
-          cpus: ${CPUS}
+          cpus: "${CPUS}"
           memory: ${MEMORY}
     depends_on:
       - humanoid
+
   rv05:
     image: phtcosta/rvandroid:0.0.1
-    container_name: rv05
+    container_name: rv-05
     environment:
       - RV_REPETITIONS=${REPETITIONS}
       - RV_TIMEOUTS=${TIMEOUTS}
@@ -120,17 +115,17 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
-      # - RV_DELAY=60
     volumes:
-      - ./05/apks:/opt/rvsec/rv-android/apks
-      - ./05/instrumented:/opt/rvsec/rv-android/out
-      - ./05/results:/opt/rvsec/rv-android/results
+      - ./batches/05:/opt/rvsec/rv-android/apks
+      - ./containers/05/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/05/results:/opt/rvsec/rv-android/results
+      - ./containers/05/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
       resources:
         limits:
-          cpus: ${CPUS}
+          cpus: "${CPUS}"
           memory: ${MEMORY}
     depends_on:
       - humanoid

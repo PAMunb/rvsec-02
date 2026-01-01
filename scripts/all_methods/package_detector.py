@@ -4,12 +4,6 @@ Enhanced Package Detection for Android APKs
 
 Detects the real package name of Android APKs using component-based heuristics
 with additional techniques for game engines and string similarity.
-
-Algorithm documented in: docs/NOVO/07_pacotes.md
-
-Author: Claude Code + Pedro
-Date: 2025-10-07 (Enhanced)
-Original: 2025-10-04
 """
 
 import os
@@ -524,7 +518,7 @@ class PackageDetector:
                 same_package = False
                 break
         if same_package:
-            print("Same package detected")
+            # print("Same package detected")
             return manifest_pkg, manifest_pkg, {"total_components": len(all_components),
                                                 "app_components": len(app_components),
                                                 "confidence": "high",
