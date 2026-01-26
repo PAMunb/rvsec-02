@@ -70,6 +70,52 @@ def get_container_status(container_prefix: str) -> dict:
         return {}
 
 
+def get_experiment_start_time(exp_dir: Path) -> datetime:
+    """Obtém o tempo de início do experimento baseado no BATCHES.csv (hora local)."""
+    earliest = None
+
+    # Primeiro tenta ler do BATCHES.csv (hora local confiável)
+    try:
+        batches_csv = exp_dir.parent / "BATCHES.csv"
+        if batches_csv.exists():
+            import csv
+            with open(batches_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    start = row.get('start', '').strip()
+                    if start:
+                        try:
+                            ts = datetime.strptime(start, "%Y-%m-%d %H:%M")
+                            if earliest is None or ts < earliest:
+                                earliest = ts
+                        except ValueError:
+                            pass
+    except Exception:
+        pass
+
+    if earliest:
+        return earliest
+
+    # Fallback: ler dos diretórios de timestamp (pode ter timezone diferente)
+    try:
+        for container_dir in exp_dir.iterdir():
+            if container_dir.is_dir() and container_dir.name.isdigit():
+                results_dir = container_dir / "results"
+                if results_dir.exists():
+                    for d in results_dir.iterdir():
+                        if d.is_dir() and d.name.isdigit() and len(d.name) == 14:
+                            try:
+                                ts = datetime.strptime(d.name, "%Y%m%d%H%M%S")
+                                if earliest is None or ts < earliest:
+                                    earliest = ts
+                            except ValueError:
+                                pass
+    except Exception:
+        pass
+
+    return earliest if earliest else datetime.now()
+
+
 def get_execution_memory(results_dir: Path) -> dict:
     """Lê o execution_memory.json mais recente."""
     try:
@@ -105,6 +151,53 @@ def count_tasks(memory: dict) -> dict:
     return {'total': total, 'completed': completed, 'pct': pct}
 
 
+def estimate_remaining_time(memory: dict, overhead_per_task: int = 35) -> int:
+    """Estima tempo restante em segundos baseado nas tasks não executadas.
+
+    Args:
+        memory: execution_memory.json dict
+        overhead_per_task: segundos de overhead (emulador, etc) por task
+
+    Returns:
+        Total de segundos estimados restantes
+    """
+    if not memory:
+        return 0
+
+    total_seconds = 0
+
+    for apk, reps in memory.items():
+        for rep, timeouts in reps.items():
+            for timeout_str, tools in timeouts.items():
+                for tool, data in tools.items():
+                    if not data.get('executed', False):
+                        try:
+                            timeout = int(timeout_str)
+                        except ValueError:
+                            timeout = 60  # fallback
+                        total_seconds += timeout + overhead_per_task
+
+    return total_seconds
+
+
+def format_eta(seconds: int) -> str:
+    """Formata segundos em string legível (ex: 2h30m, 45m, 12h)."""
+    if seconds <= 0:
+        return "done"
+
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+
+    if hours >= 24:
+        days = hours // 24
+        hours = hours % 24
+        return f"{days}d{hours}h"
+    elif hours > 0:
+        return f"{hours}h{minutes:02d}m"
+    else:
+        return f"{minutes}m"
+
+
 def get_current_task(results_dir: Path) -> str:
     """Tenta identificar a tarefa atual sendo executada."""
     try:
@@ -126,109 +219,136 @@ def get_current_task(results_dir: Path) -> str:
         return "N/A"
 
 
-def create_dashboard(exp_dir: Path, container_prefix: str, start_time: datetime) -> Layout:
-    """Cria o dashboard completo."""
-    layout = Layout()
+def get_container_batches(exp_dir: Path) -> dict:
+    """Lê BATCHES.csv e retorna mapeamento container -> batch."""
+    batches = {}
+    try:
+        import csv
+        batches_csv = exp_dir.parent / "BATCHES.csv"
+        if batches_csv.exists():
+            with open(batches_csv, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get('status') == 'running' and row.get('container'):
+                        batches[row['container']] = row['batch']
+    except Exception:
+        pass
+    return batches
 
-    # Divide em header + main
-    layout.split_column(
-        Layout(name="header", size=3),
-        Layout(name="main"),
-        Layout(name="footer", size=4)
-    )
 
-    # Header
-    elapsed = datetime.now() - start_time
-    elapsed_str = str(elapsed).split('.')[0]
-
-    header_text = Text()
-    header_text.append("🔬 RVSEC Experiment Monitor", style="bold cyan")
-    header_text.append(f"  |  ⏱ Tempo: {elapsed_str}", style="dim")
-    header_text.append(f"  |  📅 {datetime.now().strftime('%H:%M:%S')}", style="dim")
-
-    layout["header"].update(Panel(header_text, box=box.ROUNDED))
-
-    # Main - Tabela de containers
+def create_dashboard(exp_dir: Path, container_prefix: str) -> Table:
+    """Cria o dashboard compacto."""
     stats = get_container_stats(container_prefix)
     statuses = get_container_status(container_prefix)
+    batches = get_container_batches(exp_dir)
 
-    table = Table(box=box.SIMPLE_HEAD, expand=True, show_header=True)
-    table.add_column("Container", style="cyan", width=14)
-    table.add_column("Status", width=12)
-    table.add_column("CPU", justify="right", width=8)
-    table.add_column("RAM", justify="right", width=10)
-    table.add_column("Progresso", width=12)
-    table.add_column("Tarefa Atual", style="dim")
+    table = Table(title="RVSEC Monitor", box=box.ROUNDED, expand=False)
+    table.add_column("ID", style="cyan", width=3)
+    table.add_column("Bat", style="magenta", width=3)
+    table.add_column("Status", width=9)
+    table.add_column("CPU", justify="right", width=7)
+    table.add_column("RAM", justify="right", width=8)
+    table.add_column("Progresso", width=26)
+    table.add_column("Tarefas", justify="right", width=10)
+    table.add_column("ETA", justify="right", width=7)
 
     container_dirs = sorted([d for d in exp_dir.iterdir() if d.is_dir() and d.name.isdigit()])
 
     total_tasks = 0
     total_completed = 0
+    total_eta_seconds = 0
+    total_cpu = 0.0
+    total_ram_gb = 0.0
 
     for cdir in container_dirs:
         container_name = f"{container_prefix}-{cdir.name}"
         status_raw = statuses.get(container_name, "N/A")
         stat = stats.get(container_name, {})
 
-        # Progresso
         results_dir = cdir / "results"
         memory = get_execution_memory(results_dir) if results_dir.exists() else None
         tasks = count_tasks(memory)
         total_tasks += tasks['total']
         total_completed += tasks['completed']
 
-        # Status colorido
+        # ETA calculation
+        eta_seconds = estimate_remaining_time(memory)
+        total_eta_seconds += eta_seconds
+        eta_str = format_eta(eta_seconds) if memory else "-"
+
+        # Accumulate CPU and RAM
+        cpu_str = stat.get('cpu', '0%').replace('%', '')
+        try:
+            total_cpu += float(cpu_str)
+        except ValueError:
+            pass
+
+        ram_str = stat.get('mem_usage', '0').replace('GiB', '').replace('MiB', '').strip()
+        try:
+            ram_val = float(ram_str)
+            if 'MiB' in stat.get('mem_usage', ''):
+                ram_val /= 1024  # Convert MiB to GiB
+            total_ram_gb += ram_val
+        except ValueError:
+            pass
+
+        # Status
         if "Up" in status_raw:
-            status_text = Text("● Running", style="green")
+            status_text = Text("Running", style="green")
         elif "Exited (0)" in status_raw:
-            status_text = Text("✓ Done", style="blue")
+            status_text = Text("Done", style="blue")
         elif "Exited" in status_raw:
-            status_text = Text("✗ Failed", style="red")
+            status_text = Text("Failed", style="red")
         else:
-            status_text = Text(status_raw[:10], style="yellow")
+            status_text = Text("-", style="yellow")
 
-        # Progresso com barra
+        # Progresso com barra (20 blocos, 5% cada)
         pct = tasks['pct']
-        bar_filled = int(pct / 10)
-        bar_empty = 10 - bar_filled
-        progress_bar = f"[green]{'█' * bar_filled}[/green][dim]{'░' * bar_empty}[/dim] {pct:.0f}%"
+        bar_filled = min(int(pct / 5), 20)
+        bar_empty = 20 - bar_filled
 
-        # Tarefa atual
-        current_task = get_current_task(results_dir) if "Up" in status_raw else "-"
+        progress_text = Text()
+        progress_text.append('█' * bar_filled, style="green")
+        progress_text.append('░' * bar_empty, style="dim")
+        progress_text.append(f" {pct:.0f}%")
 
         table.add_row(
             cdir.name,
+            batches.get(cdir.name, "-"),
             status_text,
-            stat.get('cpu', '-'),
-            stat.get('mem_usage', '-'),
-            progress_bar,
-            current_task[:25]
+            stat.get('cpu', '-').replace('%', ''),
+            stat.get('mem_usage', '-').replace('GiB', 'G'),
+            progress_text,
+            f"{tasks['completed']}/{tasks['total']}",
+            eta_str
         )
 
-    layout["main"].update(Panel(table, title="Containers", box=box.ROUNDED))
-
-    # Footer - Resumo
-    total_pct = (total_completed / total_tasks * 100) if total_tasks > 0 else 0
-    bar_filled = int(total_pct / 5)
-    bar_empty = 20 - bar_filled
-    total_bar = f"[bold green]{'█' * bar_filled}[/bold green][dim]{'░' * bar_empty}[/dim]"
-
-    # Estimativa de tempo
-    if total_completed > 0 and total_pct < 100:
-        time_per_task = elapsed.total_seconds() / total_completed
-        remaining_tasks = total_tasks - total_completed
-        eta_seconds = time_per_task * remaining_tasks
-        eta = str(timedelta(seconds=int(eta_seconds)))
+    # Linha de total
+    if total_tasks > 0:
+        total_pct = (total_completed / total_tasks * 100)
+        bar_filled = min(int(total_pct / 5), 20)
+        bar_empty = 20 - bar_filled
+        total_progress = Text()
+        total_progress.append('█' * bar_filled, style="bold green")
+        total_progress.append('░' * bar_empty, style="dim")
+        total_progress.append(f" {total_pct:.0f}%")
     else:
-        eta = "--:--:--"
+        total_progress = Text("...", style="yellow")
 
-    footer_text = Text()
-    footer_text.append(f"\n  Total: {total_bar} {total_completed}/{total_tasks} ({total_pct:.1f}%)")
-    footer_text.append(f"\n  ETA: {eta}", style="dim")
+    table.add_section()
+    table.add_row(
+        "ALL",
+        "—",
+        Text("—", style="dim"),
+        f"{total_cpu:.0f}",
+        f"{total_ram_gb:.1f}G",
+        total_progress,
+        f"{total_completed}/{total_tasks}",
+        "—",
+        style="bold"
+    )
 
-    layout["footer"].update(Panel(footer_text, title="Progresso Geral", box=box.ROUNDED))
-
-    return layout
+    return table
 
 
 def monitor(exp_dir: str, container_prefix: str, watch: bool = False, interval: int = 10):
@@ -239,22 +359,18 @@ def monitor(exp_dir: str, container_prefix: str, watch: bool = False, interval: 
         console.print(f"[red]Diretório não encontrado: {exp_dir}[/red]")
         return
 
-    start_time = datetime.now()
-
     if watch:
-        console.print("[bold cyan]Iniciando monitor... (Ctrl+C para sair)[/bold cyan]\n")
-        with Live(console=console, refresh_per_second=0.5, screen=True) as live:
+        with Live(console=console, refresh_per_second=0.5) as live:
             while True:
                 try:
-                    dashboard = create_dashboard(exp_path, container_prefix, start_time)
-                    live.update(dashboard)
+                    table = create_dashboard(exp_path, container_prefix)
+                    live.update(table)
                     time.sleep(interval)
                 except KeyboardInterrupt:
                     break
-        console.print("\n[bold]Monitor encerrado.[/bold]")
     else:
-        dashboard = create_dashboard(exp_path, container_prefix, start_time)
-        console.print(dashboard)
+        table = create_dashboard(exp_path, container_prefix)
+        console.print(table)
 
 
 if __name__ == "__main__":

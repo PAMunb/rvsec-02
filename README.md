@@ -20,7 +20,7 @@ Specifications are located in `./specs/`.
 
 - Docker and Docker Compose
 - KVM support (`/dev/kvm`)
-- 80GB RAM (for 5 parallel containers)
+- 112GB RAM (for 7 parallel containers)
 - 500GB+ disk space
 - Python 3.8+ with venv
 
@@ -47,8 +47,14 @@ rvsec-02/
 │   │   ├── instrumented/   # Instrumented APKs
 │   │   ├── results/        # Results + logs
 │   │   └── specs/          # Specs copy
+│   ├── 02/ ... 07/
+├── results/                # Consolidated results
+│   ├── batch-01/           # Batch results directory
+│   │   ├── YYYYMMDDHHMMSS/ # Timestamp folder with execution results
+│   │   ├── execution.log   # Container log
+│   │   └── instrument_errors.json  # Instrumentation errors (if any)
+│   ├── batch-01.zip        # Zipped batch results
 │   └── ...
-├── RESULTS/                # Consolidated results (ZIPs)
 ├── scripts/                # Python scripts
 │   └── all_methods/        # .methods file generation
 ├── all_methods/            # Generated .methods files (557)
@@ -82,14 +88,18 @@ Initial:
 ├── Container 02 → Batch 02 (15 APKs)
 ├── Container 03 → Batch 03 (15 APKs)
 ├── Container 04 → Batch 04 (15 APKs)
-└── Container 05 → Batch 05 (15 APKs)
+├── Container 05 → Batch 05 (15 APKs)
+├── Container 06 → Batch 06 (15 APKs)
+└── Container 07 → Batch 07 (15 APKs)
 
 Container 01 finishes first:
-├── Container 01 → Batch 06 (reassigned)
+├── Container 01 → Batch 08 (reassigned)
 ├── Container 02 → Batch 02 (still running)
 ├── Container 03 → Batch 03 (still running)
 ├── Container 04 → Batch 04 (still running)
-└── Container 05 → Batch 05 (still running)
+├── Container 05 → Batch 05 (still running)
+├── Container 06 → Batch 06 (still running)
+└── Container 07 → Batch 07 (still running)
 ```
 
 ### Advantages
@@ -112,11 +122,11 @@ docker compose ps
 ### 2. Monitor Progress
 
 ```bash
-# All containers
-for i in 01 02 03 04 05; do
-    echo "=== rv-$i ==="
-    docker logs rv-$i 2>&1 | grep "Status:" | tail -1
-done
+# Using monitor script (recommended)
+python monitor.py containers --prefix rv
+
+# Or using watchdog for continuous monitoring with auto-resume
+nohup python watchdog.py containers --prefix rv --interval 10 &
 ```
 
 ### 3. When a Container Finishes (100%)
@@ -128,79 +138,90 @@ CONTAINER=01
 # Stop container
 docker stop rv-$CONTAINER
 
-# Save container log
-docker logs rv-$CONTAINER > containers/$CONTAINER/results/container.log 2>&1
-
 # Find timestamp
 TIMESTAMP=$(ls containers/$CONTAINER/results/ | grep -E "^[0-9]+$" | head -1)
 
-# Create ZIP with results + log
-cd containers/$CONTAINER/results
-zip -r ../../../RESULTS/batch-$BATCH.zip $TIMESTAMP/ container.log
-cd ../../..
+# Create results directory
+mkdir -p results/batch-$BATCH
+
+# Copy results
+cp -r containers/$CONTAINER/results/$TIMESTAMP results/batch-$BATCH/
+docker logs rv-$CONTAINER > results/batch-$BATCH/execution.log 2>&1
+cp containers/$CONTAINER/instrumented/instrument_errors.json results/batch-$BATCH/ 2>/dev/null
+
+# Create ZIP
+cd results && zip -r batch-$BATCH.zip batch-$BATCH/ && cd ..
 
 # Clean up
 rm -rf containers/$CONTAINER/results/*
 rm -rf containers/$CONTAINER/instrumented/*
 
-# Update docker-compose.yml to point to next batch
-# Edit: ./batches/01 → ./batches/06
+# Update docker-compose.yml: change batch number in volumes
+# Also remove resume config if present (RV_MEMORY_FILE, RV_SKIP_*)
+
+# Update BATCHES.csv
 
 # Restart container
 docker compose up -d rv$CONTAINER
 ```
 
-## Resume After Failure
+## Watchdog (Auto-Resume)
 
-When a container crashes or hangs (e.g., zombie emulator processes), you can resume execution from where it stopped.
+The watchdog monitors containers and automatically resumes stuck ones.
+
+```bash
+# Start in background
+nohup python watchdog.py containers --prefix rv --interval 10 &
+
+# Check logs
+tail -f watchdog.log
+
+# Stop
+pkill -f "watchdog.py"
+```
+
+## Manual Resume After Failure
+
+When a container crashes or hangs (use only if watchdog is not running).
 
 ### 1. Diagnose
 
 ```bash
-# Check if container is stuck (no recent logs)
+# Check if stuck (0 = stuck)
 docker logs rv-01 --since 5m 2>&1 | wc -l
 
 # Check for zombie processes
 docker exec rv-01 ps aux | grep -E "emulator.*defunct"
-
-# Check resource usage
-docker stats --no-stream rv-01
 ```
 
-### 2. Stop the Container
+### 2. Configure Resume
 
 ```bash
-docker stop rv-01
+CONTAINER=01
+TIMESTAMP=$(ls containers/$CONTAINER/results/ | grep -E "^[0-9]+$" | head -1)
+
+docker stop rv-$CONTAINER
 ```
 
-### 3. Find Timestamp
-
-```bash
-ls containers/01/results/
-# Output: 20251230220756
-```
-
-### 4. Configure Resume
-
-Add environment variables to `docker-compose.yml`:
+Add to `docker-compose.yml` in the container's environment section:
 
 ```yaml
-environment:
-  - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/TIMESTAMP/execution_memory.json
-  - RV_SKIP_INSTRUMENT=true
-  - RV_SKIP_MONITORS=true
-  - RV_SKIP_STATIC_ANALYSIS=true
+- RV_MEMORY_FILE=/opt/rvsec/rv-android/results/TIMESTAMP/execution_memory.json
+- RV_SKIP_INSTRUMENT=true
+- RV_SKIP_MONITORS=true
+- RV_SKIP_STATIC_ANALYSIS=true
 ```
 
-Replace `TIMESTAMP` with the actual value (e.g., `20251230220756`).
+### 3. Recreate Container and Verify
 
-### 5. Restart Container
+**IMPORTANT**: Always recreate the container from scratch (stop + rm + up), not just restart. Using only `docker compose up -d` may not work correctly (emulator won't start, low CPU/RAM).
 
 ```bash
-docker compose up -d rv01
+docker stop rv-$CONTAINER && docker rm rv-$CONTAINER && docker compose up -d rv$CONTAINER
+docker logs rv-$CONTAINER 2>&1 | grep "Skipping" | head -5
 ```
 
-### 6. Verify Resume
+### 4. Verify Resume
 
 ```bash
 # Check logs for "Skipping" messages
@@ -249,7 +270,7 @@ docker logs rv-01 2>&1 | grep "Status:" | tail -1
 | batch | Batch number (01-37) |
 | apks_total | Total APKs in batch |
 | apks_instrumented | Instrumented APKs in batch |
-| container | Assigned container (01-05) |
+| container | Assigned container (01-07) |
 | status | pending, running, completed |
 | start | Start timestamp |
 | end | End timestamp |

@@ -15,8 +15,13 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config - fix batch 33 missing tasks
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260126133841/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
     volumes:
-      - ./batches/01:/opt/rvsec/rv-android/apks
+      - ./batches/fix-33:/opt/rvsec/rv-android/apks
       - ./containers/01/instrumented:/opt/rvsec/rv-android/out
       - ./containers/01/results:/opt/rvsec/rv-android/results
       - ./containers/01/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
@@ -40,8 +45,13 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260114121919/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
     volumes:
-      - ./batches/02:/opt/rvsec/rv-android/apks
+      - ./batches/31:/opt/rvsec/rv-android/apks
       - ./containers/02/instrumented:/opt/rvsec/rv-android/out
       - ./containers/02/results:/opt/rvsec/rv-android/results
       - ./containers/02/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
@@ -65,8 +75,13 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260115215651/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
     volumes:
-      - ./batches/03:/opt/rvsec/rv-android/apks
+      - ./batches/32:/opt/rvsec/rv-android/apks
       - ./containers/03/instrumented:/opt/rvsec/rv-android/out
       - ./containers/03/results:/opt/rvsec/rv-android/results
       - ./containers/03/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
@@ -90,8 +105,13 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260116231309/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
     volumes:
-      - ./batches/04:/opt/rvsec/rv-android/apks
+      - ./batches/33:/opt/rvsec/rv-android/apks
       - ./containers/04/instrumented:/opt/rvsec/rv-android/out
       - ./containers/04/results:/opt/rvsec/rv-android/results
       - ./containers/04/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
@@ -115,11 +135,76 @@ services:
       - RV_HUMANOID_URL=${HUMANOID_URL}
       - RV_NO_WINDOW=${NO_WINDOW}
       - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260118032830/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
     volumes:
-      - ./batches/05:/opt/rvsec/rv-android/apks
+      - ./batches/35:/opt/rvsec/rv-android/apks
       - ./containers/05/instrumented:/opt/rvsec/rv-android/out
       - ./containers/05/results:/opt/rvsec/rv-android/results
       - ./containers/05/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
+    devices:
+      - /dev/kvm:/dev/kvm
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPUS}"
+          memory: ${MEMORY}
+    depends_on:
+      - humanoid
+
+  rv06:
+    image: phtcosta/rvandroid:0.0.1
+    container_name: rv-06
+    environment:
+      - RV_REPETITIONS=${REPETITIONS}
+      - RV_TIMEOUTS=${TIMEOUTS}
+      - RV_TOOLS=${TOOLS}
+      - RV_HUMANOID_URL=${HUMANOID_URL}
+      - RV_NO_WINDOW=${NO_WINDOW}
+      - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260118171025/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
+    volumes:
+      - ./batches/36:/opt/rvsec/rv-android/apks
+      - ./containers/06/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/06/results:/opt/rvsec/rv-android/results
+      - ./containers/06/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
+    devices:
+      - /dev/kvm:/dev/kvm
+    deploy:
+      resources:
+        limits:
+          cpus: "${CPUS}"
+          memory: ${MEMORY}
+    depends_on:
+      - humanoid
+
+  rv07:
+    image: phtcosta/rvandroid:0.0.1
+    container_name: rv-07
+    environment:
+      - RV_REPETITIONS=${REPETITIONS}
+      - RV_TIMEOUTS=${TIMEOUTS}
+      - RV_TOOLS=${TOOLS}
+      - RV_HUMANOID_URL=${HUMANOID_URL}
+      - RV_NO_WINDOW=${NO_WINDOW}
+      - RV_JCA_SPEC=${JCA_SPEC}
+      # Resume config
+      - RV_MEMORY_FILE=/opt/rvsec/rv-android/results/20260117110029/execution_memory.json
+      - RV_SKIP_INSTRUMENT=true
+      - RV_SKIP_MONITORS=true
+      - RV_SKIP_STATIC_ANALYSIS=true
+    volumes:
+      - ./batches/34:/opt/rvsec/rv-android/apks
+      - ./containers/07/instrumented:/opt/rvsec/rv-android/out
+      - ./containers/07/results:/opt/rvsec/rv-android/results
+      - ./containers/07/specs:/opt/rvsec/rvsec/rvsec-mop/src/main/resources/generic
     devices:
       - /dev/kvm:/dev/kvm
     deploy:
