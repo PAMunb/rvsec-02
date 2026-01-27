@@ -1,15 +1,37 @@
 #!/usr/bin/env python3
 """
-Parallel Batch ALL_METHODS generation for the complete dataset.
+Parallel batch generator for .methods files in RV-Android framework.
 
-This script processes APKs in parallel batches to generate .methods files
-with complete signatures and MOP analysis.
+This module generates .methods files for APKs by analyzing bytecode and
+determining reachability and MOP specification coverage. It orchestrates
+parallel processing across multiple APKs with configurable batch sizes.
 
-Adapted for rvsec-02 project with Generic Specs (27 specs).
+### Architectural Overview:
+The generator uses a ProcessPoolExecutor to distribute APK analysis across
+multiple worker processes. Each worker invokes the reachability analyzer to
+generate a complete method inventory with signatures, reachability information,
+and MOP method usage analysis. The batch-based approach enables processing of
+large APK datasets while managing resource constraints through configurable
+parallelism levels.
 
-Usage:
-    python3 -m all_methods.batch_generator --test  # Process 10 sample APKs
-    python3 -m all_methods.batch_generator --all   # Process all 557 APKs in batches
+### Key Architectural Decisions:
+- **Process-Based Parallelism**: Uses ProcessPoolExecutor for CPU-bound analysis tasks
+- **Batch Processing**: Splits APKs into configurable batches to control resource usage
+- **Package Detection**: Leverages PackageDetector to resolve manifest vs code package discrepancies
+- **Worker Isolation**: Each worker imports required modules independently to support multiprocessing
+
+### Role in the System:
+- Generates static analysis baseline (.methods files) for coverage measurement
+- Enables parallel processing of large APK datasets for experimental efficiency
+- Produces input for downstream coverage analysis and violation detection
+- Provides progress tracking and error reporting for batch execution
+
+### Integration Points:
+- Input: APK files from config.ALL_APKS directory and specs from config.GENERIC_SPECS_DIR
+- Output: .methods CSV files in config.ALL_METHODS_GENERIC directory
+- Depends on: reachability.generate_all_methods_file() for individual APK analysis
+- Depends on: PackageDetector for package name detection
+- Depends on: config module for directory paths and settings
 """
 
 import os
@@ -30,11 +52,25 @@ def process_single_apk_worker(args: Tuple[str, str, str, str]) -> Tuple[bool, st
     """
     Worker function for parallel processing of a single APK.
 
+    Invokes the reachability analyzer to generate a .methods file for the
+    given APK. This function runs in a separate worker process and handles
+    module imports independently to support multiprocessing isolation.
+
     Args:
-        args: (apk_path, package_name, output_file, specs_dir)
+        args: Tuple of (apk_path, package_name, output_file, specs_dir).
+            - apk_path: Absolute path to the APK file to analyze.
+            - package_name: Detected package name for the APK.
+            - output_file: Absolute path where .methods CSV will be written.
+            - specs_dir: Directory containing JavaMOP specification files.
 
     Returns:
-        (success, apk_name, message)
+        Tuple of (success, apk_name, message) where:
+            - success: Boolean indicating successful .methods generation.
+            - apk_name: Filename of the processed APK.
+            - message: Status message including method count or error details.
+
+    Raises:
+        No exceptions are raised; errors are caught and returned in message.
     """
     apk_path, package_name, output_file, specs_dir = args
     apk_name = Path(apk_path).name
@@ -42,9 +78,10 @@ def process_single_apk_worker(args: Tuple[str, str, str, str]) -> Tuple[bool, st
     try:
         start_time = time.time()
 
-        # Import here to avoid issues with multiprocessing
+        # Import reachability module in worker process for isolation
+        # Each worker must import independently to avoid multiprocessing issues
         sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from all_methods.novo import generate_all_methods_file
+        from all_methods.reachability import generate_all_methods_file
 
         generate_all_methods_file(
             apk_path=apk_path,
@@ -56,10 +93,11 @@ def process_single_apk_worker(args: Tuple[str, str, str, str]) -> Tuple[bool, st
         end_time = time.time()
         duration = end_time - start_time
 
-        # Check if file was created and has content
+        # Verify output file was created and contains methods beyond header line
         if Path(output_file).exists() and Path(output_file).stat().st_size > 0:
             with open(output_file, 'r') as f:
-                line_count = sum(1 for _ in f) - 1  # Subtract header
+                # Subtract header line to get method count
+                line_count = sum(1 for _ in f) - 1
 
             message = f"SUCCESS: {line_count} methods in {duration:.1f}s"
             return True, apk_name, message
@@ -75,39 +113,85 @@ def process_single_apk_worker(args: Tuple[str, str, str, str]) -> Tuple[bool, st
 
 class ParallelBatchMethodsGenerator:
     """
-    Parallel batch processor for generating .methods files.
+    Parallel batch processor for generating .methods files from APKs.
 
-    Processes APKs in parallel batches with progress tracking and error handling.
+    Orchestrates analysis of multiple APKs using ProcessPoolExecutor, managing
+    package detection, batch organization, and progress tracking. Generates
+    .methods CSV files containing method inventories with reachability and MOP
+    specification coverage information.
+
+    ### Architectural Decisions:
+    - Uses ProcessPoolExecutor for CPU-bound APK analysis with configurable parallelism
+    - Discovers and detects package names before processing to enable correct analysis
+    - Batches APKs to manage peak resource usage during parallel processing
+    - Tracks success/failure statistics for reporting and debugging
+
+    ### Role in the System:
+    - Provides the main execution interface for batch .methods generation
+    - Orchestrates parallel worker processes for large-scale APK analysis
+    - Generates static analysis baseline for runtime coverage measurement
+    - Reports progress and statistics for experiment execution monitoring
+
+    ### Key Features:
+    - Package detection via PackageDetector for manifest vs code package resolution
+    - Configurable batch size and parallelism level for resource management
+    - Progress tracking with APK/minute rates and cumulative statistics
+    - Error handling and reporting with per-APK status messages
     """
 
-    def __init__(self, apks_dir: str, output_dir: str, specs_dir: str, batch_size: int = 5):
+    def __init__(self, apks_dir: str, output_dir: str, specs_dir: str, batch_size: int = 5) -> None:
+        """
+        Initialize the parallel batch processor.
+
+        Args:
+            apks_dir: Directory containing APK files to analyze.
+            output_dir: Directory where .methods CSV files will be written.
+            specs_dir: Directory containing JavaMOP specification files.
+            batch_size: Number of parallel workers per batch (default: 5).
+
+        Returns:
+            None
+        """
         self.apks_dir = Path(apks_dir)
         self.output_dir = Path(output_dir)
         self.specs_dir = specs_dir
         self.batch_size = batch_size
 
-        # Create output directory
+        # Create output directory if it does not exist
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Initialize PackageDetector
-        from all_methods.package_detector import PackageDetector
+        # Initialize PackageDetector for manifest vs code package resolution
+        from processors.package_detector import PackageDetector
         self.package_detector = PackageDetector()
         print("PackageDetector initialized")
 
-        # Statistics
+        # Track processing statistics for final reporting
         self.processed = 0
         self.failed = 0
         self.start_time = None
 
     def find_apk_package_pairs(self, test_mode: bool = False) -> List[Tuple[str, str]]:
         """
-        Find APK files and detect their real package names using PackageDetector.
+        Find APK files and detect their actual package names.
 
-        Returns list of (apk_path, detected_package) tuples.
+        Scans the APKs directory for .apk files and uses PackageDetector to
+        resolve the actual package name for each APK. Detects cases where the
+        manifest package differs from the code package (common in apps with
+        application ID suffixes or build variants).
+
+        Args:
+            test_mode: If True, process only first 10 APKs; if False, process all.
+
+        Returns:
+            List of (apk_path, detected_package) tuples for all APKs with
+            successfully detected package names.
+
+        Raises:
+            No exceptions; errors are logged and APKs are skipped.
         """
         print("Discovering APK files and detecting package names...")
 
-        # Get all APK files
+        # Sort APK files for deterministic processing order
         apk_files = sorted(self.apks_dir.glob("*.apk"))
 
         print(f"Found {len(apk_files)} total APKs in directory")
@@ -145,9 +229,22 @@ class ParallelBatchMethodsGenerator:
 
     def process_batch_parallel(self, apk_package_pairs: List[Tuple[str, str]], batch_num: int, total_batches: int) -> Tuple[int, int]:
         """
-        Process a batch of APKs in parallel.
+        Process a batch of APKs in parallel using ProcessPoolExecutor.
 
-        Returns (successful_count, failed_count)
+        Submits all APKs in the batch to worker processes and collects results
+        as they complete. Reports progress and status for each APK.
+
+        Args:
+            apk_package_pairs: List of (apk_path, package_name) tuples to process.
+            batch_num: Current batch number for reporting.
+            total_batches: Total number of batches for reporting.
+
+        Returns:
+            Tuple of (successful_count, failed_count) indicating the number of
+            APKs processed successfully and the number that failed.
+
+        Raises:
+            No exceptions; errors are caught and counted in failed_count.
         """
         print(f"\nProcessing batch {batch_num}/{total_batches} ({len(apk_package_pairs)} APKs) in parallel...")
 
@@ -161,12 +258,12 @@ class ParallelBatchMethodsGenerator:
         successful = 0
         failed = 0
 
-        # Process in parallel
+        # Submit all tasks to worker pool for concurrent execution
         with ProcessPoolExecutor(max_workers=self.batch_size) as executor:
-            # Submit all tasks
+            # Map futures to APK paths for result tracking
             future_to_apk = {executor.submit(process_single_apk_worker, args): args[0] for args in worker_args}
 
-            # Collect results as they complete
+            # Collect results in completion order to enable early error detection
             for future in as_completed(future_to_apk):
                 apk_path = future_to_apk[future]
                 try:
@@ -186,7 +283,20 @@ class ParallelBatchMethodsGenerator:
 
     def process_batch(self, test_mode: bool = False) -> None:
         """
-        Process all APKs in parallel batch mode.
+        Main entry point for processing all APKs in parallel batch mode.
+
+        Discovers APKs and package names, organizes them into configurable
+        batches, and processes each batch in parallel. Tracks statistics and
+        reports progress throughout execution.
+
+        Args:
+            test_mode: If True, process only 10 sample APKs; if False, process all.
+
+        Returns:
+            None
+
+        Raises:
+            No exceptions; errors are caught and reported in statistics.
         """
         self.start_time = time.time()
 
@@ -207,7 +317,7 @@ class ParallelBatchMethodsGenerator:
         print(f"Max parallel workers per batch: {self.batch_size}")
         print("-" * 80)
 
-        # Split APKs into batches
+        # Organize APKs into configurable batch sizes for resource management
         batches = []
         for i in range(0, len(apk_package_pairs), self.batch_size):
             batch = apk_package_pairs[i:i + self.batch_size]
@@ -216,7 +326,7 @@ class ParallelBatchMethodsGenerator:
         total_batches = len(batches)
         print(f"Split into {total_batches} batches")
 
-        # Process each batch
+        # Process each batch sequentially while running workers in parallel
         for batch_num, batch_apks in enumerate(batches, 1):
             batch_start = time.time()
 
@@ -228,13 +338,14 @@ class ParallelBatchMethodsGenerator:
             batch_end = time.time()
             batch_duration = batch_end - batch_start
 
-            # Progress update
+            # Calculate progress metrics for current batch
             total_processed = batch_num * self.batch_size
             if total_processed > len(apk_package_pairs):
                 total_processed = len(apk_package_pairs)
 
             elapsed_total = time.time() - self.start_time
-            rate = total_processed / elapsed_total * 60  # APKs per minute
+            # Calculate throughput in APKs per minute for progress estimation
+            rate = total_processed / elapsed_total * 60
 
             print(f"Progress: {total_processed}/{len(apk_package_pairs)} ({total_processed/len(apk_package_pairs)*100:.1f}%) | "
                   f"Success: {self.processed} | Failed: {self.failed} | "
@@ -244,7 +355,21 @@ class ParallelBatchMethodsGenerator:
         self.print_final_statistics(len(apk_package_pairs))
 
     def print_final_statistics(self, total_apks: int) -> None:
-        """Print final processing statistics."""
+        """
+        Print final processing statistics to console.
+
+        Displays cumulative results including success/failure counts, success
+        rates, processing time, and throughput metrics.
+
+        Args:
+            total_apks: Total number of APKs in the complete dataset.
+
+        Returns:
+            None
+
+        Raises:
+            No exceptions.
+        """
         elapsed = time.time() - self.start_time
 
         print("\n" + "=" * 80)
@@ -265,8 +390,21 @@ class ParallelBatchMethodsGenerator:
         print("=" * 80)
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Parallel Batch ALL_METHODS generation for rvsec-02")
+def main() -> None:
+    """
+    Parse command-line arguments and execute parallel batch processing.
+
+    Supports two modes:
+    - --test: Process 10 sample APKs for validation
+    - --all: Process all APKs in the configured dataset
+
+    Returns:
+        None
+
+    Raises:
+        SystemExit: If neither --test nor --all is specified.
+    """
+    parser = argparse.ArgumentParser(description="Parallel batch .methods generation for rvsec-02")
     parser.add_argument("--test", action="store_true", help="Test mode: process only 10 APKs")
     parser.add_argument("--all", action="store_true", help="Full mode: process all 557 APKs in batches")
     parser.add_argument("--batch-size", type=int, default=2, help="Number of parallel workers per batch (default: 2, conservative)")
@@ -279,7 +417,7 @@ def main():
         parser.print_help()
         return
 
-    # Handle sequential mode
+    # Sequential mode overrides batch_size for single-process debugging
     batch_size = 1 if args.sequential else args.batch_size
 
     # Use config values
@@ -308,6 +446,7 @@ def main():
 
 
 if __name__ == "__main__":
-    # Set multiprocessing start method for compatibility
+    # Use 'spawn' start method for compatibility with Androguard libraries
+    # in worker processes and to ensure clean process state
     multiprocessing.set_start_method('spawn', force=True)
     main()

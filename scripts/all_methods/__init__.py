@@ -5,7 +5,6 @@ This package contains tools for analyzing APKs and generating .methods CSV files
 that contain method reachability analysis for Runtime Verification coverage calculation.
 """
 
-from .novo import generate_all_methods_file
-from .package_detector import PackageDetector
+from .reachability import generate_all_methods_file
 
-__all__ = ['generate_all_methods_file', 'PackageDetector']
+__all__ = ['generate_all_methods_file']
