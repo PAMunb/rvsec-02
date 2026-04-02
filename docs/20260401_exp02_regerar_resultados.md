@@ -20,13 +20,13 @@
 
 | Item | Exp01 | Exp02 |
 |------|-------|-------|
-| Execução | COMPLETA (jan/2026) | PARCIAL (03/fev/2026) — faltam ares e qtesting |
+| Execução | COMPLETA (jan/2026) | COMPLETA (01-02/abr/2026) — 5 tools (fev) + 2 complementar (abr) |
 | APKs | 557 total, **349 instrumentados** | **10** APKs |
-| Ferramentas | 11 | **5 de 7** executadas (faltam ares e qtesting) |
+| Ferramentas | 11 | **7** (5 originais + ares e qtesting complementar) |
 | Timeouts | 60, 120, 180, 300s | 10800s (3h) |
 | Repetições | 3 | 1 |
-| Execuções totais | 46.068 | 50 de 70 esperadas |
-| Logcats brutos | gdrive/experiment01/ (61GB, 37 batches) | rvsec-02/exp02/containers/{01-05}/results/ |
+| Execuções totais | 46.068 | **70** (10 APKs × 7 tools) |
+| Logcats brutos | gdrive/experiment01/ (61GB, 37 batches) | **gdrive/experiment02/ (70 logcats, 7 tools)** ✅ |
 | Planilhas processadas | gdrive/exp01_generic_planilhas/ (4 CSVs, já renomeados _new) | **NÃO PROCESSADO** |
 | .methods | gdrive/all_methods/ (557 + mop_methods.csv) | Reutilizar do exp01 |
 | Formato logcat | threadtime | threadtime |
@@ -39,7 +39,7 @@ Porém, o `.env-exp02` e a `execution_memory.json` confirmam que **apenas 5 fora
 
 Ambas as ferramentas funcionaram normalmente no exp01 new generic (4.188 execuções cada, com 1.095 e 1.127 erros detectados respectivamente).
 
-**Decisão**: Processar os resultados das 5 ferramentas já executadas. Planejar execução complementar de ares e qtesting (ver Fase A no final).
+**Resolução**: Execução complementar de ares e qtesting realizada em 01-02/abr/2026 (`exp02-complementar/`). Resultados coletados para gdrive. Agora temos as 7 ferramentas completas.
 
 ### Projetos Envolvidos
 
@@ -56,7 +56,7 @@ Para distinguir dos resultados do "generic original" (120 specs), todos os artef
 | Arquivo | Descrição |
 |---------|-----------|
 | `exp01_generic_new_summary.csv` | Exp01, 349 APKs, 11 tools (já renomeado) |
-| `exp02_generic_new_summary.csv` | Exp02, 10 APKs, 5 tools (a gerar) |
+| `exp02_generic_new_summary.csv` | Exp02, 10 APKs, 7 tools (a gerar) |
 
 ---
 
@@ -345,56 +345,45 @@ ls -la $GDRIVE/exp02_generic_new_planilhas/
 
 ---
 
-### Fase 5: Investigar os 19 APKs sem resultados (exp01)
+### Fase 5: Investigar os 19 APKs sem resultados (exp01) ✅
 
 **Contexto**: 557 APKs totais - 349 com resultados - 189 erros de instrumentação = 19 APKs sem explicação.
 
-#### Tarefa 5.1: Identificar os 19 APKs
+**Investigação realizada em 02/abr/2026**. Resultado:
 
-```bash
-cd /pedro/desenvolvimento/workspaces/workspaces-doutorado/workspace-rv/rvsec-02
+| Categoria | APKs | Causa |
+|-----------|------|-------|
+| `.methods` vazio + tem logcats | 16 | Análise estática não encontrou métodos do app (game engines Godot/Unity, packages incompatíveis). Parser excluiu por impossibilidade de calcular cobertura. |
+| Tem `.methods` + sem logcats | 2 | Falha ou perda durante execução/coleta dos batches. |
+| Sem `.methods` + sem logcats | 1 | Erro de instrumentação não registrado no JSON. |
 
-# Todos os 557
-ls /home/pedro/desenvolvimento/RV_ANDROID/NOVO/APKS/*.apk | xargs -n1 basename | sort > /tmp/all_557.txt
+#### Categoria 1: .methods vazio, logcats existem (16 APKs)
 
-# 349 com resultados
-cut -d',' -f1 /home/pedro/desenvolvimento/RV_ANDROID_NOVO/gdrive/NOVAS_SPECS_GENERICAS/exp01_generic_planilhas/exp01_generic_new_summary.csv | \
-  tail -n+2 | sort -u > /tmp/with_results_349.txt
+Instrumentados e executados (132 logcats cada), mas `.methods` tem 0 linhas. A análise estática (Soot + Androguard) não encontrou métodos no detected_package — tipicamente game engines (Godot, Unity) onde o código real usa package do engine.
 
-# 189 com erro de instrumentação
-python3 -c "
-import json
-with open('/home/pedro/desenvolvimento/RV_ANDROID_NOVO/gdrive/NOVAS_SPECS_GENERICAS/instrument/exp01_generic_instrument_errors.json') as f:
-    data = json.load(f)
-for apk in sorted(data.keys()):
-    print(apk)
-" > /tmp/instrument_errors_189.txt
-
-# Os sem explicação
-comm -23 /tmp/all_557.txt /tmp/with_results_349.txt > /tmp/without_results_208.txt
-comm -23 /tmp/without_results_208.txt /tmp/instrument_errors_189.txt > /tmp/unexplained_19.txt
-
-cat /tmp/unexplained_19.txt
+```
+com.example.trigger_344.apk          cz.vitSkalicky.klavesnice_2.apk
+de.igloffstein.maik.aRevelation_19.apk  in.p1x.tanks_of_freedom_20.apk
+io.github.alketii.mightyknight_1.apk   io.github.kobuge.games.minilens_2.apk
+io.githubfede0d.planetrider_1.apk      ir.hsn6.defendo_8.apk
+ir.hsn6.k2_2.apk                       ir.hsn6.trans_4.apk
+ir.hsn6.turo_7.apk                     org.domogik.domodroid13_33.apk
+org.pipoypipagames.cowsrevenge_9.apk    org.pipoypipagames.towerjumper_13.apk
+org.sufficientlysecure.termbot_10905217.apk  sun.bob.leela_2.apk
 ```
 
-#### Tarefa 5.2: Verificar logcats e traces nos resultados brutos
+#### Categoria 2: .methods válido, sem logcats (2 APKs)
 
-```bash
-GDRIVE_EXP01="/home/pedro/desenvolvimento/RV_ANDROID_NOVO/gdrive/NOVAS_SPECS_GENERICAS/experiment01"
-
-while read apk; do
-  logcats=$(find $GDRIVE_EXP01 -path "*/$apk/*.logcat" 2>/dev/null | wc -l)
-  traces=$(find $GDRIVE_EXP01 -path "*/$apk/*.trace" 2>/dev/null | wc -l)
-  batch=$(grep "$apk" APKs.csv 2>/dev/null | cut -d',' -f2)
-  echo "$apk: batch=$batch, $logcats logcats, $traces traces"
-done < /tmp/unexplained_19.txt
+```
+pt.ipleiria.mymusicqoe_12.apk   (1598 methods)
+wtf.nbd.obw_12.apk              (5341 methods)
 ```
 
-**Possíveis causas**: APK sem .methods, instrumentação silenciosamente falha, APK não na lista válida usada pelo parser.
+#### Categoria 3: Sem .methods, sem logcats (1 APK)
 
-#### Tarefa 5.3: Documentar resultados
-
-Criar seção em CLAUDE.md ou documento separado com lista e causa de cada APK.
+```
+com.oF2pks.classyshark3xodus_32.apk
+```
 
 ---
 

@@ -6,5 +6,6 @@ that contain method reachability analysis for Runtime Verification coverage calc
 """
 
 from .reachability import generate_all_methods_file
+from .package_detector import PackageDetector
 
 __all__ = ['generate_all_methods_file']
